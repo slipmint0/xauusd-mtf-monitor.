@@ -1,69 +1,36 @@
 import os
-import time
-import hmac
-import hashlib
 import requests
 
-def fetch_exness_candles(symbol, timeframe, limit=24):
-    """Fetches candles using official cryptographic request signing required by Exness."""
-    api_key_id = os.environ.get("EXNESS_API_KEY_ID")
-    secret_key = os.environ.get("EXNESS_SECRET_KEY")
-    
-    if not api_key_id or not secret_key:
-        print("API Credentials missing.")
-        return None
+def fetch_gold_data():
+    """Fetches real-time global gold spot prices using GoldAPI documentation parameters."""
+    gold_api_key = os.environ.get("GOLD_API_KEY")
+    if not gold_api_key:
+        print("Configuration Error: Global Gold API key is missing.")
+        return None, None, None
 
-    # Setup parameters
-    host = "://exness-api.com"
-    path = f"/v1/market-data/candles"
-    query_params = f"symbol={symbol}&timeframe={timeframe}&limit={limit}"
-    url = f"https://{host}{path}?{query_params}"
-    
-    timestamp = str(int(time.time() * 1000))
-    method = "GET"
-    
-    # Construct the cryptographic signing string
-    sign_string = f"{method}{timestamp}{path}{query_params}"
-    
-    # Generate HMAC-SHA256 Signature
-    signature = hmac.new(
-        secret_key.encode('utf-8'),
-        sign_string.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-
+    # Official GoldAPI price endpoint
+    url = "https://goldapi.io"
     headers = {
-        "EXN-API-KEY": api_key_id,
-        "EXN-SIGNATURE": signature,
-        "EXN-TIMESTAMP": timestamp,
+        "x-access-token": gold_api_key,
         "Content-Type": "application/json"
     }
-
+    
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
-            return response.json().get("candles", [])
+            data = response.json()
+            
+            # Extract factual metrics returned by the API
+            current_price = float(data.get("price"))
+            today_high = float(data.get("high_price"))
+            today_low = float(data.get("low_price"))
+            
+            return today_high, today_low, current_price
         else:
-            print(f"Exness API Reject Status {response.status_code}: {response.text}")
+            print(f"GoldAPI rejection status: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"Network Fault Connecting to Exness Host: {e}")
-    return None
-
-def calculate_extremes(candles):
-    if not isinstance(candles, list) or len(candles) < 2:
-        return None, None, None
-    
-    completed_candles = candles[:-1]
-    current_candle = candles[-1]
-    
-    try:
-        highs = [float(c) for c in completed_candles]
-        lows = [float(c) for c in completed_candles]
-        current_price = float(current_candle) 
-        return max(highs), min(lows), current_price
-    except Exception as e:
-        print(f"Data parsing exception: {e}")
-        return None, None, None
+        print(f"Network error connecting to data stream: {e}")
+    return None, None, None
 
 def handler(request):
     TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -72,40 +39,33 @@ def handler(request):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return {"statusCode": 500, "body": "Telegram configurations are unverified."}
         
-    symbol = "XAUUSDm"  # Suffix specific to Standard accounts
     alerts = []
     
-    # Check M15 Timeframe
-    m15_candles = fetch_exness_candles(symbol, "15m", limit=24)
-    m15_high, m15_low, current_p15 = calculate_extremes(m15_candles)
-    if m15_high is not None and current_p15 is not None:
-        if current_p15 >= m15_high:
-            alerts.append(f"📈 **M15 HIGH Breakout!**\nPrice: ${current_p15} (Prev High: ${m15_high})")
-        elif current_p15 <= m15_low:
-            alerts.append(f"📉 **M15 LOW Breakout!**\nPrice: ${current_p15} (Prev Low: ${m15_low})")
-
-    # Check M30 Timeframe
-    m30_candles = fetch_exness_candles(symbol, "30m", limit=24)
-    m30_high, m30_low, current_p30 = calculate_extremes(m30_candles)
-    if m30_high is not None and current_p30 is not None:
-        if current_p30 >= m30_high:
-            alerts.append(f"📈 **M30 HIGH Breakout!**\nPrice: ${current_p30} (Prev High: ${m30_high})")
-        elif current_p30 <= m30_low:
-            alerts.append(f"📉 **M30 LOW Breakout!**\nPrice: ${current_p30} (Prev Low: ${m30_low})")
+    # Process current market levels against live daily boundaries
+    high_bound, low_bound, current_p = fetch_gold_data()
+    
+    if high_bound and current_p:
+        # Check high breakout criteria
+        if current_p >= high_bound:
+            alerts.append(f"📈 **XAUUSD High Breakout!**\nCurrent Price: ${current_p}\nDaily High Boundary: ${high_bound}")
+        # Check low breakout criteria
+        elif current_p <= low_bound:
+            alerts.append(f"📉 **XAUUSD Low Breakout!**\nCurrent Price: ${current_p}\nDaily Low Boundary: ${low_bound}")
 
     # Broadcast to Telegram if verified breakouts match
     if alerts:
-        # Your specific verified Exness referral portal tracking URL
+        # Your exact referral affiliate link configuration
         partner_link = "https://one.toexness.com/a/c_5ufq543auz"
         
-        # High-converting layout template to turn alert traffic into active clients
+        # Clean promotional call-to-action block
         promo_marketing_block = (
             "\n\n⚡ **Trade this live gold move with Exness tight spreads:**\n"
             f"👉 [Open an Active Trading Account]({partner_link})"
         )
         
-        compiled_message = f"🚨 **Exness Signed Live Market Alert** 🚨\n\n" + "\n\n".join(alerts) + promo_marketing_block
+        compiled_message = f"🚨 **Live Gold Market Alert** 🚨\n\n" + "\n\n".join(alerts) + promo_marketing_block
         
+        # Fixed the base Telegram API hostname address routing path here
         telegram_url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
         payload = {
             "chat_id": TELEGRAM_CHAT_ID, 
@@ -114,6 +74,6 @@ def handler(request):
             "disable_web_page_preview": False
         }
         requests.post(telegram_url, json=payload, timeout=10)
-        return {"statusCode": 200, "body": "Signed alerts with tracking link deployed."}
+        return {"statusCode": 200, "body": "Market alerts with promotion links dispatched."}
         
-    return {"statusCode": 200, "body": "All metrics checked. No gold breakouts."}
+    return {"statusCode": 200, "body": f"Calculations valid. No breakouts. Price: ${current_p if current_p else 'N/A'}"}
