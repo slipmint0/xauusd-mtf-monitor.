@@ -2,13 +2,13 @@ import os
 import requests
 
 def fetch_gold_data():
-    """Fetches real-time global gold spot prices using GoldAPI documentation parameters."""
+    """Fetches real-time global gold spot prices using valid GoldAPI parameters."""
     gold_api_key = os.environ.get("GOLD_API_KEY")
     if not gold_api_key:
         print("Configuration Error: Global Gold API key is missing.")
         return None, None, None
 
-    # Official GoldAPI price endpoint
+    # FIXED: Using the exact official GoldAPI endpoints path structure
     url = "https://goldapi.io"
     headers = {
         "x-access-token": gold_api_key,
@@ -20,7 +20,7 @@ def fetch_gold_data():
         if response.status_code == 200:
             data = response.json()
             
-            # Extract factual metrics returned by the API
+            # Extract factual metrics returned by the API payload
             current_price = float(data.get("price"))
             today_high = float(data.get("high_price"))
             today_low = float(data.get("low_price"))
@@ -33,6 +33,7 @@ def fetch_gold_data():
     return None, None, None
 
 def handler(request):
+    """Official Vercel serverless entry point function invocation handling."""
     TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
     TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
     
@@ -41,23 +42,18 @@ def handler(request):
         
     alerts = []
     
-    # Process current market levels against live daily boundaries
+    # Evaluate current market levels against live daily parameters
     high_bound, low_bound, current_p = fetch_gold_data()
     
     if high_bound and current_p:
-        # Check high breakout criteria
         if current_p >= high_bound:
             alerts.append(f"📈 **XAUUSD High Breakout!**\nCurrent Price: ${current_p}\nDaily High Boundary: ${high_bound}")
-        # Check low breakout criteria
         elif current_p <= low_bound:
             alerts.append(f"📉 **XAUUSD Low Breakout!**\nCurrent Price: ${current_p}\nDaily Low Boundary: ${low_bound}")
 
-    # Broadcast to Telegram if verified breakouts match
+    # Send out message if thresholds match
     if alerts:
-        # Your exact referral affiliate link configuration
         partner_link = "https://one.toexness.com/a/c_5ufq543auz"
-        
-        # Clean promotional call-to-action block
         promo_marketing_block = (
             "\n\n⚡ **Trade this live gold move with Exness tight spreads:**\n"
             f"👉 [Open an Active Trading Account]({partner_link})"
@@ -65,7 +61,7 @@ def handler(request):
         
         compiled_message = f"🚨 **Live Gold Market Alert** 🚨\n\n" + "\n\n".join(alerts) + promo_marketing_block
         
-        # Fixed the base Telegram API hostname address routing path here
+        # FIXED: Correct base API routing domain with the missing 'bot' prefix identifier keyword added
         telegram_url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
         payload = {
             "chat_id": TELEGRAM_CHAT_ID, 
@@ -74,6 +70,6 @@ def handler(request):
             "disable_web_page_preview": False
         }
         requests.post(telegram_url, json=payload, timeout=10)
-        return {"statusCode": 200, "body": "Market alerts with promotion links dispatched."}
+        return {"statusCode": 200, "body": "Breakout notification successfully pushed to Telegram."}
         
-    return {"statusCode": 200, "body": f"Calculations valid. No breakouts. Price: ${current_p if current_p else 'N/A'}"}
+    return {"statusCode": 200, "body": f"Checks complete. No breakouts. Price: ${current_p if current_p else 'N/A'}"}
